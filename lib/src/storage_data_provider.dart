@@ -704,4 +704,17 @@ class StorageDataProvider {
       }
     });
   }
+
+  /// Get URL from [path]
+  Future<String> getDownloadUrlFromPath(String path) async {
+    try {
+      return storage.ref(path).getDownloadURL();
+    } on FirebaseException catch (err) {
+      throw StorageFailure.fromCode(
+        err.code,
+        path: path,
+        stackTrace: err.stackTrace.toString(),
+      );
+    }
+  }
 }
