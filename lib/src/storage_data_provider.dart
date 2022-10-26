@@ -1,3 +1,4 @@
+import 'dart:developer';
 import 'dart:typed_data';
 
 import 'package:firebase_storage/firebase_storage.dart';
@@ -680,10 +681,30 @@ class StorageDataProvider {
     }
   }
 
+  /// Move files from [sourcePath] to [destinationPath]
+  Future<void> moveFileToPath(String sourcePath, String destinationPath) async {
+    try {
+      final sourceRef = storage.ref(sourcePath);
+      final destinationRef = storage.ref(destinationPath);
+
+      await destinationRef.putData((await sourceRef.getData())!);
+    } on StorageFailure {
+      rethrow;
+    } on FirebaseException catch (err) {
+      throw StorageFailure.fromCode(
+        err.code,
+        path: sourcePath,
+        stackTrace: err.stackTrace.toString(),
+      );
+    }
+  }
+
   /// Copy files from [sourcePath] to [destinationPath]
   Future<void> copyContentToPath(
     String sourcePath,
     String destinationPath, {
+    bool includeSubfolders = false,
+    bool isRootFolder = true,
     void Function(double)? onProgressUpdated,
   }) async {
     final sourceRef = storage.ref(sourcePath);
@@ -691,6 +712,33 @@ class StorageDataProvider {
 
     return sourceRef.listAll().then((results) async {
       final totalFiles = results.items.length;
+      final totalFolders = includeSubfolders ? results.prefixes.length : 0;
+      final totalElements = totalFiles + totalFolders;
+
+      var elementIndex = 0;
+
+      var folderPartialProgress = 0.0;
+
+      // Progress for entiere folder
+      if (includeSubfolders) {
+        for (final folder in results.prefixes) {
+          await copyContentToPath(
+            '$sourcePath/${folder.name}',
+            '$destinationPath/${folder.name}',
+            includeSubfolders: true,
+            isRootFolder: false,
+            onProgressUpdated: (partialProgress) {
+              folderPartialProgress = (elementIndex / totalElements) +
+                  (partialProgress / totalElements);
+              log('Folder ${folder.fullPath}. Progress $folderPartialProgress');
+              onProgressUpdated?.call(folderPartialProgress);
+            },
+          );
+          elementIndex++;
+        }
+      }
+
+      // Partial progress for files
       var count = 0;
       for (final item in results.items) {
         final metadata = await item.getMetadata();
@@ -700,7 +748,17 @@ class StorageDataProvider {
           SettableMetadata(contentType: metadata.contentType),
         );
         count++;
-        onProgressUpdated?.call(count / totalFiles);
+        final fileProgress = count / totalFiles;
+
+        if (totalFolders > 0) {
+          onProgressUpdated?.call(
+            ((elementIndex + 1) / totalElements) +
+                (fileProgress / totalElements),
+          );
+        } else {
+          onProgressUpdated?.call(fileProgress);
+        }
+        log('${item.fullPath}. Progress $fileProgress');
       }
     });
   }
