@@ -262,6 +262,7 @@ class StorageDataProvider {
       final ref = storage.ref().child(path);
       await ref.putData(
         data,
+        metadata,
       );
     } on FirebaseException catch (err) {
       throw StorageFailure.fromCode(
