@@ -654,6 +654,24 @@ class StorageDataProvider {
     }
   }
 
+  /// Delete item in [path]
+  Future<void> deleteItem(
+    String path,
+  ) async {
+    try {
+      final ref = storage.ref(path);
+      await ref.delete();
+    } on StorageFailure {
+      rethrow;
+    } on FirebaseException catch (err) {
+      throw StorageFailure.fromCode(
+        err.code,
+        path: path,
+        stackTrace: err.stackTrace.toString(),
+      );
+    }
+  }
+
   ///
   int _deepLevel(Reference ref) {
     // Calculate recursevly the deep level of the item
@@ -665,12 +683,21 @@ class StorageDataProvider {
   }
 
   /// Copy files from [sourcePath] to [destinationPath]
-  Future<void> copyFileToPath(String sourcePath, String destinationPath) async {
+  Future<void> copyFileToPath(
+    String sourcePath,
+    String destinationPath,
+    Map<String, String>? customMetadata,
+  ) async {
     try {
       final sourceRef = storage.ref(sourcePath);
       final destinationRef = storage.ref(destinationPath);
 
-      await destinationRef.putData((await sourceRef.getData())!);
+      await destinationRef.putData(
+        (await sourceRef.getData())!,
+        customMetadata != null
+            ? SettableMetadata(customMetadata: customMetadata)
+            : null,
+      );
     } on StorageFailure {
       rethrow;
     } on FirebaseException catch (err) {
@@ -683,12 +710,21 @@ class StorageDataProvider {
   }
 
   /// Move files from [sourcePath] to [destinationPath]
-  Future<void> moveFileToPath(String sourcePath, String destinationPath) async {
+  Future<void> moveFileToPath(
+    String sourcePath,
+    String destinationPath,
+    Map<String, String>? customMetadata,
+  ) async {
     try {
       final sourceRef = storage.ref(sourcePath);
       final destinationRef = storage.ref(destinationPath);
 
-      await destinationRef.putData((await sourceRef.getData())!);
+      await destinationRef.putData(
+        (await sourceRef.getData())!,
+        customMetadata != null
+            ? SettableMetadata(customMetadata: customMetadata)
+            : null,
+      );
     } on StorageFailure {
       rethrow;
     } on FirebaseException catch (err) {
@@ -706,6 +742,7 @@ class StorageDataProvider {
     String destinationPath, {
     bool includeSubfolders = false,
     bool isRootFolder = true,
+    Map<String, String>? customMetadata,
     void Function(double)? onProgressUpdated,
   }) async {
     final sourceRef = storage.ref(sourcePath);
@@ -728,6 +765,7 @@ class StorageDataProvider {
             '$destinationPath/${folder.name}',
             includeSubfolders: true,
             isRootFolder: false,
+            customMetadata: customMetadata,
             onProgressUpdated: (partialProgress) {
               folderPartialProgress = (elementIndex / totalElements) +
                   (partialProgress / totalElements);
@@ -746,7 +784,10 @@ class StorageDataProvider {
         final destinationItem = destinationRef.child(item.name);
         await destinationItem.putData(
           (await item.getData())!,
-          SettableMetadata(contentType: metadata.contentType),
+          SettableMetadata(
+            contentType: metadata.contentType,
+            customMetadata: customMetadata,
+          ),
         );
         count++;
         final fileProgress = count / totalFiles;
