@@ -743,6 +743,7 @@ class StorageDataProvider {
     bool includeSubfolders = false,
     bool isRootFolder = true,
     Map<String, String>? customMetadata,
+    List<String> excludePaths = const [],
     void Function(double)? onProgressUpdated,
   }) async {
     final sourceRef = storage.ref(sourcePath);
@@ -759,7 +760,9 @@ class StorageDataProvider {
 
       // Progress for entiere folder
       if (includeSubfolders) {
-        for (final folder in results.prefixes) {
+        for (final folder in results.prefixes
+            .where((prefix) => !excludePaths.contains(prefix.name))
+            .toList()) {
           await copyContentToPath(
             '$sourcePath/${folder.name}',
             '$destinationPath/${folder.name}',
@@ -779,7 +782,9 @@ class StorageDataProvider {
 
       // Partial progress for files
       var count = 0;
-      for (final item in results.items) {
+      for (final item in results.items
+          .where((i) => !excludePaths.contains(i.name))
+          .toList()) {
         final metadata = await item.getMetadata();
         final destinationItem = destinationRef.child(item.name);
         await destinationItem.putData(
