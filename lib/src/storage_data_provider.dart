@@ -275,6 +275,29 @@ class StorageDataProvider {
     }
   }
 
+  /// Put [data] on [path].
+  Future<void> putBlobToPath(
+    String path,
+    dynamic data, {
+    SettableMetadata? metadata,
+  }) async {
+    try {
+      final ref = storage.ref().child(path);
+      await ref.putBlob(
+        data,
+        metadata,
+      );
+    } on FirebaseException catch (err) {
+      throw StorageFailure.fromCode(
+        err.code,
+        path: path,
+        stackTrace: err.stackTrace.toString(),
+      );
+    } catch (_) {
+      throw const StorageFailure();
+    }
+  }
+
   /// Put [content] on [path]. Get [onSuccess] callback if success.
   /// Get upload progress on [onProgressUpdated] callback.
   /// Get [onPaused] callback if paused. Get [onCanceled] callback if canceled.
@@ -631,6 +654,7 @@ class StorageDataProvider {
   /// Delete items in [path]
   Future<void> deleteItemsInPath(
     String path, {
+    List<String> excludePaths = const <String>[],
     void Function(double)? onProgressUpdated,
   }) async {
     try {
@@ -639,6 +663,7 @@ class StorageDataProvider {
       final totalFiles = results.items.length;
       var count = 0;
       for (final item in results.items) {
+        if (excludePaths.contains(item.name)) continue;
         await item.delete();
         count++;
         if (onProgressUpdated != null) onProgressUpdated(count / totalFiles);
